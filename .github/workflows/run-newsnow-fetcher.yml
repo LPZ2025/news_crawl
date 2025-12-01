@@ -14,11 +14,16 @@ on:
 jobs:
   fetch-news:
     runs-on: ubuntu-latest  # 使用最新的 Ubuntu 系统
+    permissions:
+      contents: write  # 允许写入仓库（用于自动提交文件）
     
     steps:
-      # 步骤1: 检出代码
+      # 步骤1: 检出代码（带写权限，用于自动提交）
       - name: 检出代码
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0  # 获取完整历史记录
       
       # 步骤2: 设置 Python 环境
       - name: 设置 Python 环境
@@ -37,12 +42,26 @@ jobs:
         run: |
           python newsnow_fetcher.py
       
-      # 步骤5: 上传输出文件（如果有生成的文件）
+      # 步骤5: 上传输出文件（带时间戳，避免覆盖）
       - name: 上传输出文件
         if: always()  # 无论成功或失败都上传
         uses: actions/upload-artifact@v4
         with:
-          name: output-files
+          name: output-files-${{ github.run_number }}-${{ github.run_id }}
           path: output/
           retention-days: 7  # 保留7天
+      
+      # 步骤6: 自动提交输出文件到仓库（方便本地拉取）
+      - name: 配置 Git
+        if: always()
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+      
+      - name: 提交输出文件到仓库
+        if: always()
+        run: |
+          git add output/
+          git diff --staged --quiet || git commit -m "自动更新: 新闻爬取结果 - ${{ github.run_number }} [skip ci]"
+          git push
 
